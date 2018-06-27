@@ -1,0 +1,90 @@
+---
+title: "Predicting Class (State) of a Person"
+output: html_document
+author : "Anil Kumar J"
+date: "27 June 2018"
+---
+### Overview
+As part of this project we trained models using various Machine Learning Algorithms to use quantified self movement variables as predictors to get the state of a person. Compared these models and Random Forest seemed to give the best Accuracy. Used Random Forest Model to predict on test data.  
+
+### Simulations
+
+Loading the datasets 
+```{r setup,}
+training_data <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",na.strings=c("","NA"))
+testing_data<-read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+
+```
+
+###  Basic Exploratory Data Analyses
+```{r}
+dim(training_data)
+```
+There seem to be various columns that can be used as predictors but from the notes mentioned it is better to use columns that have on of these terms - belt,arm,forearm,dumbbell in the name and also avoiding various variable that have lot of NA's (non measured values) should help us decrease the variables (features) count.  
+```{r}
+na_stats<-lapply(training_data, function(x) sum(is.na(x)))
+na_stats<-do.call(rbind.data.frame, na_stats)
+colnames(na_stats)<-c("no_of_nas")
+na_stats <- which(na_stats$no_of_nas>15000)
+col_rm<-c(na_stats)
+col_av<-c(grep(("belt|arm|forearm|dumbbell"),names(training_data)))
+col_consi<-setdiff(col_av, col_rm)
+```
+
+### Building Models
+
+Using the columns which we had considered to be important, we predict the classe variable using various Algorithms like Random Forest, Gradient Dissent, Linear Discrimante Analysis, Navie Bayes, Trees.
+
+```{r,cache=TRUE, message=FALSE, warning=FALSE} 
+library(caret)
+library(parallel)
+library(doParallel)
+cluster <- makeCluster(detectCores() - 1) 
+registerDoParallel(cluster)
+fitControl <- trainControl(method = "cv",number = 5,allowParallel = TRUE)
+model_fit_rf <- train(training_data[,c(col_consi)],as.factor(training_data[,c("classe")]), method="rf",trControl = fitControl)
+model_fit_gbm <- train(training_data[,c(col_consi)],as.factor(training_data[,c("classe")]), method="gbm",trControl = fitControl)
+model_fit_lda <- train(training_data[,c(col_consi)],as.factor(training_data[,c("classe")]), method="lda",trControl = fitControl)
+model_fit_nb <- train(training_data[,c(col_consi)],as.factor(training_data[,c("classe")]), method="nb",trControl = fitControl)
+model_fit_rpart<- train(training_data[,c(col_consi)],as.factor(training_data[,c("classe")]), method="rpart",trControl = fitControl)
+stopCluster(cluster)
+registerDoSEQ()
+```
+
+From stats in Appendix it can be seen that Random Forest has the best Accuracy.
+
+### Predicting on test data
+
+Using Random FOrest to predict Classe for test data.  
+
+
+```{r opts_chunk$set(cache.extra = R.version)} 
+predict(model_fit_rf,testing_data)
+```
+
+
+### Appendix  
+
+#### Random Forest Stats
+```{r,cache=TRUE}
+confusionMatrix.train(model_fit_rf)
+```
+#### Gradient Dissent Stats
+```{r}
+confusionMatrix.train(model_fit_gbm)
+```
+
+#### Linear Discrimnate Analysis
+```{r,cache=TRUE}
+confusionMatrix.train(model_fit_lda)
+```
+
+#### Navie Bayes
+```{r,cache=TRUE}
+confusionMatrix.train(model_fit_nb)
+```
+
+#### Predicting with Trees
+```{r,cache=TRUE}
+confusionMatrix.train(model_fit_rpart)
+```
